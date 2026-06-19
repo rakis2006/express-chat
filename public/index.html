@@ -10,6 +10,7 @@
       .form { display: flex; }
       .input { flex: 1; padding: 10px; border: 1px solid #ccc; }
       .submit { padding: 10px; border: 1px solid #ccc; background: #eee; cursor: pointer; }
+      .system { color: gray; font-style: italic; }
     </style>
   </head>
   <body>
@@ -25,25 +26,52 @@
         const host = location.origin.replace(/^http/, 'ws')
         const ws = new WebSocket(host + '/ws')
         const myId = self.crypto.randomUUID().substr(0, 8)
+
+        // ユーザー名を決める（空ならIDを使う）
+        let myName = prompt('名前を入力してください', '名無しさん')
+        if (!myName) myName = myId
+
         const form = document.querySelector('.form')
+        const messageList = document.querySelector('.messages')
+
+        // 接続時に入室メッセージを送る
+        ws.onopen = function () {
+          ws.send(JSON.stringify({
+            type: 'system',
+            text: `${myName} さんが入室しました`,
+            id: myId
+          }))
+        }
 
         form.onsubmit = function (e) {
           e.preventDefault()
           const input = document.querySelector('.input')
           const text = input.value
-          ws.send(JSON.stringify({ id: myId, text, time: new Date().toLocaleTimeString('ja-JP') }))
+          ws.send(JSON.stringify({
+            type: 'chat',
+            id: myId,
+            name: myName,
+            text,
+            time: new Date().toLocaleTimeString('ja-JP')
+          }))
           input.value = ''
           input.focus()
         }
 
         ws.onmessage = function (msg) {
-          const { id, text, time } = JSON.parse(msg.data)
-          const messageList = document.querySelector('.messages')
+          const data = JSON.parse(msg.data)
           const li = document.createElement('li')
-          if (id === myId) {
-            li.textContent = `[${time}] (${id})自分: ` + text
+
+          if (data.type === 'system') {
+            li.textContent = data.text
+            li.className = 'system'
           } else {
-            li.textContent = `[${time}] ${id}: ` + text
+            const { id, name, text, time } = data
+            if (id === myId) {
+              li.textContent = `[${time}] (自分)${name}: ` + text
+            } else {
+              li.textContent = `[${time}] ${name}: ` + text
+            }
           }
           messageList.appendChild(li)
         }
